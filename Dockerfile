@@ -1,30 +1,40 @@
-FROM alpine:3.7
-
-ENV \
-    TERM=xterm-color           \
-    DINIT_VERSION=1.2.1        \
-    TIME_ZONE=Australia/Queensland  \
-    MYUSER=app                 \
-    MYUID=1001                 \
-    DOCKER_GID=999         
-
-COPY files/scripts/nop.sh /usr/bin/nop.sh
-COPY files/scripts/app.sh /usr/bin/app.sh
-COPY files/init.sh /init.sh
+FROM golang:1.10-alpine
 
 RUN \
-    chmod +x /usr/bin/nop.sh /usr/bin/app.sh /init.sh && \
-    apk add --no-cache --update su-exec tzdata curl openssl && \
-    ln -s /sbin/su-exec /usr/local/bin/gosu && \
-    mkdir -p /home/$MYUSER && \
-    adduser -s /bin/sh -D -u $MYUID $MYUSER && chown -R $MYUSER:$MYUSER /home/$MYUSER && \
-    delgroup ping && addgroup -g 998 ping && \
-    addgroup -g ${DOCKER_GID} docker && addgroup ${MYUSER} docker && \
-    mkdir -p /srv && chown -R $MYUSER:$MYUSER /srv && \
-    cp /usr/share/zoneinfo/${TIME_ZONE} /etc/localtime && \
-    echo "${TIME_ZONE}" > /etc/timezone && date && \
-    wget -q https://github.com/Yelp/dumb-init/releases/download/v${DINIT_VERSION}/dumb-init_${DINIT_VERSION}_amd64 -O /sbin/dinit && \
-    chmod +x /sbin/dinit && \
+    apk add --no-cache --update tzdata git bash curl && \
+    cp /usr/share/zoneinfo/America/Chicago /etc/localtime && \
     rm -rf /var/cache/apk/*
 
-ENTRYPOINT ["/init.sh"]
+RUN go version
+
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
+ENV GOLANGCILINT=1.5
+
+RUN \
+    go get -u github.com/golang/dep/cmd/dep && \
+    go get -u github.com/kardianos/govendor && \
+    go get -u github.com/mattn/goveralls && \
+    go get -u github.com/jteeuwen/go-bindata/... && \
+    go get -u github.com/stretchr/testify && \
+    go get -u github.com/vektra/mockery/.../ && \
+    go get -u gopkg.in/alecthomas/gometalinter.v2 && \
+    ln -s /go/bin/gometalinter.v2 /go/bin/gometalinter && \
+    gometalinter --install --force
+
+ADD https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCILINT}/golangci-lint-${GOLANGCILINT}-linux-amd64.tar.gz /tmp/golangci-lint.tar.gz
+
+RUN \
+    cd /tmp && tar -zxf /tmp/golangci-lint.tar.gz && \
+    mv /tmp/golangci-lint-${GOLANGCILINT}-linux-amd64/golangci-lint /go/bin/golangci-lint && \
+    chmod +x /go/bin/golangci-lint
+
+
+ADD coverage.sh /script/coverage.sh
+ADD checkvendor.sh /script/checkvendor.sh
+ADD git-rev.sh /script/git-rev.sh
+
+RUN \
+    chmod +x /script/coverage.sh /script/checkvendor.sh /script/git-rev.sh && \
+    ln -s /script/checkvendor.sh $GOPATH/bin/checkvendor
