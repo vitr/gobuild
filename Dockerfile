@@ -3,7 +3,7 @@ FROM alpine:3.7
 ENV \
     TERM=xterm-color           \
     DINIT_VERSION=1.2.1        \
-    TIME_ZONE=America/Chicago  \
+    TIME_ZONE=Australia/Queensland  \
     MYUSER=app                 \
     MYUID=1001                 \
     DOCKER_GID=999         
